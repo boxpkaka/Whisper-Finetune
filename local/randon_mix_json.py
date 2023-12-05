@@ -1,6 +1,7 @@
 import json
 import random
 import os
+import sys
 from tqdm import tqdm
 from typing import List, Dict
 
@@ -26,9 +27,9 @@ def mix_list(path1: str, path2: str, export_dir) -> None:
 
 
 if __name__ == '__main__':
-    path1 = '/data1/yumingdong/whisper/whisper-Finetune/data/cantonese_subset_50/train.json'
-    path2 = '/data1/yumingdong/whisper/whisper-Finetune/data/mandarin_50h/train.json'
-    export_dir = '/data1/yumingdong/whisper/whisper-Finetune/data/mandarin50h+cantonese50h'
+    path1 = sys.argv[1]
+    path2 = sys.argv[2]
+    export_dir = sys.argv[3]
 
     mix_list(path1, path2, export_dir)
 

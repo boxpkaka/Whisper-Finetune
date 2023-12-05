@@ -1,14 +1,16 @@
+import json
+import os
+import sys
 import multiprocessing
 import soundfile
 from tqdm import tqdm
-from 
-import json
-import os
+from typing import List
+import copy
 
-LANGUAGE = 'yue'
+
 INIT_ITEM = {'audio': {'path': ''},
              'sentence': '',
-             'language': LANGUAGE,
+             'language': '',
              'sentences': [],
              'duration': 0}
 
@@ -19,7 +21,7 @@ def read_file(path: str) -> List:
     return [item.strip().split(' ') for item in file]
 
 
-def list2dict(wav_list: List, text_list: List, start: int, end: int, output_queue) -> None:
+def list2dict(wav_list: List, text_list: List, language: str, start: int, end: int, output_queue) -> None:
     local_labeled_data_list = []
     for i in range(start, end):
         item = copy.deepcopy(INIT_ITEM)
@@ -32,6 +34,7 @@ def list2dict(wav_list: List, text_list: List, start: int, end: int, output_queu
         duration = round(wav.shape[0] / sr, 2)
         item['audio']['path'] = path
         item['sentence'] = sentence
+        item['language'] = language
         item['sentences'].append({'start': 0, 'end': duration, 'text': sentence})
         item['duration'] = duration
         local_labeled_data_list.append(item)
@@ -39,7 +42,7 @@ def list2dict(wav_list: List, text_list: List, start: int, end: int, output_queu
     output_queue.put(local_labeled_data_list)
 
 
-def merge_generate_json(path, export_path):
+def merge_generate_json(path: List, export_path: str, language: str) -> None:
     num_processes = multiprocessing.cpu_count()
     output_queue = multiprocessing.Queue()
 
@@ -53,7 +56,8 @@ def merge_generate_json(path, export_path):
         for i in range(num_processes):
             start = i * chunk_size
             end = length if i == num_processes - 1 else (i + 1) * chunk_size
-            process = multiprocessing.Process(target=list2dict, args=(wav_list, text_list, start, end, output_queue))
+            process = multiprocessing.Process(target=list2dict, args=(wav_list, text_list, language,
+                                                                      start, end, output_queue))
             processes.append(process)
             process.start()
 
@@ -74,9 +78,10 @@ def merge_generate_json(path, export_path):
 if __name__ == "__main__":
     wenet_dir = sys.argv[1]
     save_dir = sys.argv[2]
+    language = sys.argv[3]
 
     path_list = [wenet_dir]
     export_root_path = save_dir
     os.makedirs(export_root_path, exist_ok=True)
 
-    merge_generate_json(path_list, os.path.join(export_root_path, 'train.json'))
+    merge_generate_json(path_list, os.path.join(export_root_path, 'train.json'), language)
