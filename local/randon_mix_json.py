@@ -22,7 +22,7 @@ def mix_list(path1: str, path2: str, export_dir) -> None:
     os.makedirs(export_dir, exist_ok=True)
     with open(os.path.join(export_dir, 'train.json'), 'w') as f:
         for line in tqdm(mixed_json):
-            data = json.dumps(line)
+            data = json.dumps(line, ensure_ascii=False)
             f.write(data + '\n')
 
 

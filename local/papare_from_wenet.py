@@ -1,18 +1,19 @@
 import json
 import os
 import sys
-import multiprocessing
+import copy
 import soundfile
+import opencc
+import multiprocessing
 from tqdm import tqdm
 from typing import List
-import copy
-
 
 INIT_ITEM = {'audio': {'path': ''},
              'sentence': '',
              'language': '',
              'sentences': [],
              'duration': 0}
+converter = opencc.OpenCC('t2s.json')
 
 
 def read_file(path: str) -> List:
@@ -29,6 +30,7 @@ def list2dict(wav_list: List, text_list: List, language: str, start: int, end: i
             continue
         path = wav_list[i][1]
         sentence = text_list[i][1]
+        sentence = converter.convert(sentence)
 
         wav, sr = soundfile.read(path)
         duration = round(wav.shape[0] / sr, 2)
@@ -71,7 +73,7 @@ def merge_generate_json(path: List, export_path: str, language: str) -> None:
     print('Writing data ...')
     with open(export_path, 'w') as f:
         for item in tqdm(labeled_data_list):
-            data = json.dumps(item)
+            data = json.dumps(item, ensure_ascii=False)
             f.write(data + '\n')
 
 

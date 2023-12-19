@@ -29,11 +29,11 @@ base_model = WhisperForConditionalGeneration.from_pretrained(base_model_path, de
                                                              local_files_only=args.local_files_only)
 # 与Lora模型合并
 model = PeftModel.from_pretrained(base_model, args.lora_model, local_files_only=args.local_files_only)
-feature_extractor = WhisperFeatureExtractor.from_pretrained(peft_config.base_model_name_or_path,
+feature_extractor = WhisperFeatureExtractor.from_pretrained(base_model_path,
                                                             local_files_only=args.local_files_only)
-tokenizer = WhisperTokenizerFast.from_pretrained(peft_config.base_model_name_or_path,
+tokenizer = WhisperTokenizerFast.from_pretrained(base_model_path,
                                                  local_files_only=args.local_files_only)
-processor = WhisperProcessor.from_pretrained(peft_config.base_model_name_or_path,
+processor = WhisperProcessor.from_pretrained(base_model_path,
                                              local_files_only=args.local_files_only)
 
 # 合并参数
