@@ -9,3 +9,4 @@ dataset/*
 test.py
 finetune.sh
 exp/*
+test.py

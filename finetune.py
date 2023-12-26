@@ -1,12 +1,11 @@
 import argparse
 import functools
 import os
-import platform
 
-import torch
 from peft import LoraConfig, get_peft_model, AdaLoraConfig, PeftModel, prepare_model_for_kbit_training
 from transformers import Seq2SeqTrainer, Seq2SeqTrainingArguments, WhisperForConditionalGeneration, WhisperProcessor
 
+from utils.callback import SavePeftModelCallback
 from utils.data_utils import DataCollatorSpeechSeq2SeqWithPadding
 from utils.model_utils import load_from_checkpoint
 from utils.reader import CustomDataset
@@ -33,7 +32,7 @@ add_arg("timestamps",    type=bool,  default=False, help="训练时是否使用�
 add_arg("use_compile",   type=bool, default=False, help="是否使用Pytorch2.0的编译器")
 add_arg("local_files_only", type=bool, default=False, help="是否只在本地加载模型，不尝试下载")
 add_arg("num_train_epochs", type=int, default=3,      help="训练的轮数")
-add_arg("language",      type=str, default="Chinese", help="设置语言，可全称也可简写，如果为None则训练的是多语言")
+add_arg("language",      type=str, default=None, help="设置语言，可全称也可简写，如果为None则训练的是多语言")
 add_arg("task",     type=str, default="transcribe", choices=['transcribe', 'translate'], help="模型的任务")
 add_arg("augment_config_path",         type=str, default=None, help="数据增强配置文件路径")
 add_arg("resume_from_checkpoint",      type=str, default=None, help="恢复训练的检查点路径")
@@ -95,7 +94,7 @@ if args.resume_from_checkpoint:
     model = PeftModel.from_pretrained(model, args.resume_from_checkpoint, is_trainable=True)
 else:
     print(f'adding LoRA modules...')
-    target_modules = ["k_proj", "q_proj", "v_proj", "out_proj"]
+    target_modules = ["k_proj", "q_proj", "v_proj", "out_proj", "fc1", "fc2"]
     print(target_modules)
     if args.use_adalora:
         config = AdaLoraConfig(init_r=12, target_r=4, beta1=0.85, beta2=0.85, tinit=200, tfinal=1000, deltaT=10,
@@ -123,7 +122,8 @@ training_args = \
                              report_to=["tensorboard"],  # 指定使用tensorboard保存log
                              save_steps=args.save_steps,  # 指定保存检查点的步数
                              eval_steps=args.eval_steps,  # 指定评估模型的步数
-                             save_total_limit=10,  # 只保存最新检查点的数量
+                             torch_compile=args.use_compile, # 使用Pytorch2.0的编译器
+                             save_total_limit=5,  # 只保存最新检查点的数量
                              optim='adamw_torch',  # 指定优化方法
                              ddp_find_unused_parameters=False if ddp else None,  # 分布式训练设置
                              dataloader_num_workers=args.num_workers,  # 设置读取数据的线程数量
@@ -136,18 +136,14 @@ if training_args.local_rank == 0 or training_args.local_rank == -1:
     model.print_trainable_parameters()
     print('=' * 90)
 
-if args.use_compile:
-    # 使用Pytorch2.0的编译器
-    if torch.__version__ >= "2" and platform.system().lower() != 'windows':
-        model = torch.compile(model)
-
 # 定义训练器
 trainer = Seq2SeqTrainer(args=training_args,
                          model=model,
                          train_dataset=train_dataset,
                          eval_dataset=test_dataset,
                          data_collator=data_collator,
-                         tokenizer=processor.feature_extractor)
+                         tokenizer=processor.feature_extractor,
+                         callbacks=[SavePeftModelCallback])
 model.config.use_cache = False
 trainer._load_from_checkpoint = load_from_checkpoint
 

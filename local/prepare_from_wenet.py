@@ -13,7 +13,6 @@ INIT_ITEM = {'audio': {'path': ''},
              'language': '',
              'sentences': [],
              'duration': 0}
-converter = opencc.OpenCC('t2s.json')
 
 
 def read_file(path: str) -> List:
@@ -22,7 +21,8 @@ def read_file(path: str) -> List:
     return [item.strip().split(' ') for item in file]
 
 
-def list2dict(wav_list: List, text_list: List, language: str, start: int, end: int, output_queue) -> None:
+def list2dict(wav_list: List, text_list: List, language: str, converter: opencc.OpenCC,
+              start: int, end: int, output_queue) -> None:
     local_labeled_data_list = []
     for i in range(start, end):
         item = copy.deepcopy(INIT_ITEM)
@@ -30,8 +30,8 @@ def list2dict(wav_list: List, text_list: List, language: str, start: int, end: i
             continue
         path = wav_list[i][1]
         sentence = text_list[i][1]
-        sentence = converter.convert(sentence)
-
+        if converter is not None:
+            sentence = converter.convert(sentence)
         wav, sr = soundfile.read(path)
         duration = round(wav.shape[0] / sr, 2)
         item['audio']['path'] = path
@@ -44,7 +44,7 @@ def list2dict(wav_list: List, text_list: List, language: str, start: int, end: i
     output_queue.put(local_labeled_data_list)
 
 
-def merge_generate_json(path: List, export_path: str, language: str) -> None:
+def merge_generate_json(path: List, export_path: str, language: str, converter: opencc.OpenCC) -> None:
     num_processes = multiprocessing.cpu_count()
     output_queue = multiprocessing.Queue()
 
@@ -58,8 +58,13 @@ def merge_generate_json(path: List, export_path: str, language: str) -> None:
         for i in range(num_processes):
             start = i * chunk_size
             end = length if i == num_processes - 1 else (i + 1) * chunk_size
-            process = multiprocessing.Process(target=list2dict, args=(wav_list, text_list, language,
-                                                                      start, end, output_queue))
+            process = multiprocessing.Process(target=list2dict, args=(wav_list,
+                                                                      text_list,
+                                                                      language,
+                                                                      converter,
+                                                                      start,
+                                                                      end,
+                                                                      output_queue))
             processes.append(process)
             process.start()
 
@@ -81,9 +86,19 @@ if __name__ == "__main__":
     wenet_dir = sys.argv[1]
     save_dir = sys.argv[2]
     language = sys.argv[3]
+    character_type = sys.argv[4]
 
     path_list = [wenet_dir]
     export_root_path = save_dir
     os.makedirs(export_root_path, exist_ok=True)
 
-    merge_generate_json(path_list, os.path.join(export_root_path, 'train.json'), language)
+    if character_type == 'yue':
+        print('Convert Simplified to Traditional Chinese')
+        converter = opencc.OpenCC('s2t.json')
+    elif character_type == 'zh':
+        converter = opencc.OpenCC('t2s.json')
+        print('Convert Traditional to Simplified Chinese')
+    else:
+        converter = None
+
+    merge_generate_json(path_list, os.path.join(export_root_path, 'train.json'), language, converter)
