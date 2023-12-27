@@ -5,7 +5,6 @@ import os
 from peft import LoraConfig, get_peft_model, AdaLoraConfig, PeftModel, prepare_model_for_kbit_training
 from transformers import Seq2SeqTrainer, Seq2SeqTrainingArguments, WhisperForConditionalGeneration, WhisperProcessor
 
-from utils.callback import SavePeftModelCallback
 from utils.data_utils import DataCollatorSpeechSeq2SeqWithPadding
 from utils.model_utils import load_from_checkpoint
 from utils.reader import CustomDataset
@@ -105,7 +104,7 @@ else:
 
 if args.base_model.endswith("/"):
     args.base_model = args.base_model[:-1]
-output_dir = os.path.join(args.output_dir, os.path.basename(args.base_model))
+output_dir = os.path.join(args.output_dir, args.train_data.split('/')[-2])
 # 定义训练参数
 training_args = \
     Seq2SeqTrainingArguments(output_dir=output_dir,  # 保存检查点和意志的目录
@@ -123,7 +122,7 @@ training_args = \
                              save_steps=args.save_steps,  # 指定保存检查点的步数
                              eval_steps=args.eval_steps,  # 指定评估模型的步数
                              torch_compile=args.use_compile, # 使用Pytorch2.0的编译器
-                             save_total_limit=5,  # 只保存最新检查点的数量
+                             save_total_limit=10,  # 只保存最新检查点的数量
                              optim='adamw_torch',  # 指定优化方法
                              ddp_find_unused_parameters=False if ddp else None,  # 分布式训练设置
                              dataloader_num_workers=args.num_workers,  # 设置读取数据的线程数量
@@ -142,8 +141,7 @@ trainer = Seq2SeqTrainer(args=training_args,
                          train_dataset=train_dataset,
                          eval_dataset=test_dataset,
                          data_collator=data_collator,
-                         tokenizer=processor.feature_extractor,
-                         callbacks=[SavePeftModelCallback])
+                         tokenizer=processor.feature_extractor)
 model.config.use_cache = False
 trainer._load_from_checkpoint = load_from_checkpoint
 
